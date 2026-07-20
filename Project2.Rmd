@@ -1,0 +1,231 @@
+---
+title: "Claim Frequency Modeling"
+author: "Ciwon Kang"
+date: "2026-06-30"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    toc_depth: 4
+    code_folding: hide
+    theme: cosmo
+    css: style.css
+  pdf_document:
+    toc: true
+    toc_depth: '4'
+  word_document:
+    toc: true
+    toc_depth: '4'
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+
+
+
+
+
+
+
+
+## ***1) Overview***
+This project models **claim frequency** using the **freMTPL2freq** dataset.  
+We compare two modeling approaches:<br>
+- 1. Poisson GLM<br>
+- 2. Negative Binomial GLM<br>
+
+The goal is to identify an appropriate model for predicting the expected number of insurance claims while accounting for differences in policy exposure.
+
+
+
+
+
+
+## ***2) Data Exploration***
+```{r}
+library(CASdatasets)
+data(freMTPL2freq)
+```
+
+```{r, result='hide'}
+Autofreq<-freMTPL2freq
+head(Autofreq)
+str(Autofreq)
+summary(Autofreq)
+```
+
+**Variables:**
+
+- `ClaimNb`: Number of insurance claims (Response variable)
+- `Exposure`: Length of policy exposure (in years)
+- `VehPower`: Vehicle power category
+- `VehAge`: Vehicle age
+- `DrivAge`: Driver age
+- `BonusMalus`: Bonus-malus rating
+- `VehBrand`: Vehicle brand category
+- `VehGas`: Fuel type
+- `Density`: Population density
+- `Region`: Geographic region
+
+
+```{r}
+claim_counts <- table(Autofreq$ClaimNb)
+
+barplot(claim_counts,
+        main = "Distribution of Claim Count",
+        xlab = "Number of Claims",
+        ylab = "Number of Policies")
+```
+
+```{r}
+mean(Autofreq$ClaimNb)
+var(Autofreq$ClaimNb)
+```
+```{r}
+mean(Autofreq$ClaimNb == 0)
+```
+**Observation:**<br>
+- ClaimNb represents the number of insurance claims and is used as the response variable. The remaining variables describe policyholder, vehicle, and geographic characteristics that may influence claim frequency.<br><br>
+
+- Most policyholders have no claims (96%), while only a small proportion experience one or more claims. The average claim frequency is low (0.039 claims per policy), indicating that insurance claims are relatively rare events. The variance is slightly larger than the mean, suggesting that the Poisson assumption of equal mean and variance should be evaluated further.
+
+
+
+
+
+
+
+
+## ***3) Model 1 : Poisson GLM***
+### **3.1 Model fitting**
+```{r}
+model1<-glm(ClaimNb~.-IDpol-Exposure+offset(log(Exposure)),
+            family=poisson(link='log'),
+            data=Autofreq)
+summary(model1)
+```
+**Observation:**<br>
+Poisson GLM is first used as a baseline model for insurance claim frequency. The model uses a log link and accounts for differences in policy exposure through an offset term, allowing claim frequencies to be compared on a common annual basis.
+
+
+### **3.2 Actual vs Predicted claims**
+```{r}
+plot(predict(model1, type = "response"),
+     Autofreq$ClaimNb,
+     main = "Model 1: Poisson GLM",
+     xlab = "Predicted",
+     ylab = "Actual",
+     pch = 16)
+
+abline(a = 0, b = 1, col = "red", lwd = 2)
+```
+**Observation:**<br>
+Most observations are concentrated near zero, reflecting the rarity of insurance claims. While the Poisson GLM captures the overall claim frequency, it has limited ability to represent policies with multiple claims.
+
+
+
+
+
+
+### **3.3 Limitations**
+
+
+
+
+#### **3.3.1 Mean-Variance Assumption**
+- Poisson GLM assumes that the mean and variance of the response variable are equal. This assumption should be evaluated because insurance claim counts often exhibit greater variability than expected under a Poisson distribution.
+
+#### **3.3.2 Overdispersion**
+```{r}
+dispersion <- sum(residuals(model1, type = "pearson")^2) /
+              df.residual(model1)
+
+dispersion
+```
+**Observation:**<br>
+- The estimated dispersion statistic is **1.80**, which is greater than 1. This indicates moderate overdispersion, meaning that the observed variability in claim counts exceeds what is expected under the Poisson assumption. Therefore, a more flexible model such as the Negative Binomial GLM is considered in the next section.
+
+
+
+
+
+## ***4) Model 2 : Negative Binomial GLM***
+
+### **4.1 Model fitting**
+- Although the Poisson GLM provides a reasonable baseline model for claim frequency, it assumes that the mean and variance of the response are equal. The dispersion statistic indicates moderate overdispersion, suggesting that the Poisson model underestimates the variability in claim counts. Negative Binomial GLM relaxes this assumption by allowing the variance to exceed the mean, making it more appropriate for insurance claim frequency data.
+
+```{r}
+library(MASS)
+
+model2 <- glm.nb(
+  ClaimNb ~ . - IDpol - Exposure + offset(log(Exposure)),
+  data = Autofreq
+)
+
+summary(model2)
+```
+**Observation:**<br>
+The Negative Binomial GLM extends the Poisson model by introducing an additional dispersion parameter, allowing the variance to exceed the mean. This provides greater flexibility for modeling insurance claim counts when overdispersion is present.
+
+
+
+
+
+
+### **4.2 Actual vs Predicted Claims**
+
+```{r}
+plot(
+  predict(model2, type = "response"),
+  Autofreq$ClaimNb,
+  main = "Model 2: Negative Binomial GLM",
+  xlab = "Predicted",
+  ylab = "Actual",
+  pch = 16
+)
+
+abline(a = 0, b = 1, col = "red", lwd = 2)
+```
+**Observation:**<br>
+The predicted claim counts remain concentrated near zero, reflecting the rarity of insurance claims. Similar to the Poisson model, the Negative Binomial GLM has difficulty visually distinguishing the relatively small number of policies with multiple claims. Its improvement is evaluated more clearly through the dispersion structure and AIC.
+
+### **4.3 Model Performance**
+```{r}
+AIC(model1, model2)
+```
+**Observation:**<br>
+The Negative Binomial GLM has a lower AIC than the Poisson GLM, indicating a better balance between model fit and complexity. This suggests that allowing for overdispersion improves the model's ability to explain the observed claim frequencies.
+
+
+### **4.4 Dispersion Parameter**
+```{r}
+model2$theta
+```
+**Observation:**<br>
+The estimated dispersion parameter is finite, indicating that the Negative Binomial GLM allows additional variability beyond the Poisson assumption. Together with the Poisson dispersion statistic of 1.80, this supports the use of the Negative Binomial model for these claim frequency data.
+
+
+## ***5) Model Comparison***
+```{r}
+comparison <- data.frame(
+  Model = c("Poisson GLM",
+            "Negative Binomial GLM"),
+  AIC = c(AIC(model1),
+          AIC(model2))
+)
+
+comparison
+```
+**Observation:**<br>
+The Negative Binomial GLM achieved a lower AIC than the Poisson GLM, indicating a better overall fit while accounting for overdispersion. Therefore, it is selected as the final model for claim frequency.
+
+## ***6) Conclusion***
+This project compared Poisson and Negative Binomial GLMs for modeling insurance claim frequency.
+
+The Poisson GLM served as a useful baseline model but assumed that the mean and variance of the response were equal. The estimated dispersion statistic indicated moderate overdispersion, suggesting that this assumption was not fully satisfied.
+
+The Negative Binomial GLM addressed this limitation by allowing the variance to exceed the mean and achieved a lower AIC than the Poisson model. Therefore, the Negative Binomial GLM was selected as the final model for predicting insurance claim frequency.
+
+
