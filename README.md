@@ -1,28 +1,30 @@
-# Healthcare Cost Prediction
+# Claim Frequency Modeling
 
 ## Overview
 
-This project develops a two-part healthcare cost prediction model using Logistic Regression and Gamma GLM.
+This project develops a claim frequency model using the freMTPL2 automobile insurance dataset.
 
-The analysis estimates:
+The analysis compares two commonly used count models:
 
-- Insurance claim probability
-- Healthcare cost conditional on a claim
-- Expected healthcare cost
-- Individual risk classification
+- Poisson Regression
+- Negative Binomial Regression
+
+The objective is to estimate the expected number of insurance claims based on policyholder and vehicle characteristics and to identify the model that best captures claim frequency.
 
 ---
 
 ## Files
 
-- Project3.Rmd
-- Project3.html
+- Project2.Rmd
+- Project2.html
 - style.css
 
 ---
 
-## Full Report
+## View Full Report
 
 Click below to view the interactive HTML report.
 
-https://ciwonkang.github.io/claim-severity-modeling/
+https://ciwonkang.github.io/claim-frequency-modeling/Project2.html
+
+
