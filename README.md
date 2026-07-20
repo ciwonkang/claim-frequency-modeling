@@ -25,4 +25,4 @@ The analysis estimates:
 
 Click below to view the interactive HTML report.
 
-**(We'll add the link after GitHub Pages is enabled.)**
+https://ciwonkang.github.io/claim-severity-modeling/
